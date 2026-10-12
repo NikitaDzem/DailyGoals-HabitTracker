@@ -1,0 +1,56 @@
+workflows:
+  ios-workflow:
+    name: iOS Workflow
+    environment:
+      groups:
+        - app_store_credentials
+      vars:
+        XCODE_PROJECT: "DailyGoals&HabitTracker.xcodeproj"
+        XCODE_SCHEME: "DailyGoals&HabitTracker"
+        BUNDLE_ID: "com.mark.habit"
+        EXTENSION_BUDNLE_ID: "com.mark.habit.image"
+        APP_STORE_APP_ID: 6821909919
+      xcode: latest
+
+    scripts:
+      - name: Test echo (safer)
+        script: |
+          echo "Issuer ID set: ${APP_STORE_CONNECT_ISSUER_ID:+yes}"
+          echo "Key ID set: ${APP_STORE_CONNECT_KEY_IDENTIFIER:+yes}"
+          echo "ASC key set: ${APP_STORE_CONNECT_PRIVATE_KEY:+yes}"
+          echo "Cert key set: ${CERTIFICATE_PRIVATE_KEY:+yes}"
+
+      - name: Set up keychain to be used for codesigning using Codemagic CLI 'keychain' command
+        script: |
+          keychain initialize
+
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files $BUNDLE_ID --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files $EXTENSION_BUDNLE_ID --type IOS_APP_STORE --create
+
+      - name: Use system default keychain
+        script: |
+          keychain add-certificates
+
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+
+      - name: Build ipa for distribution
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - /tmp/xcodebuild_logs/*.log
+      - build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: false
